@@ -1,4 +1,4 @@
-from PIL import Image
+from PIL import Image, ImageOps
 
 END_MARKER = "###END###"
 
@@ -17,6 +17,7 @@ def bits_to_text(bits: str) -> str:
 
 def encode_image(image_path: str, message: str, output_path: str):
     img = Image.open(image_path)
+    img = ImageOps.exif_transpose(img)
     img = img.convert("RGB")
     pixels = img.load()
 
