@@ -59,17 +59,23 @@ def decode_image(image_path: str) -> str:
 
     width, height = img.size
     bits = ""
+    data = bytearray()
 
     for y in range(height):
         for x in range(width):
-            r, g, b = pixels[x, y]
-            bits += str(r & 1)
-            bits += str(g & 1)
-            bits += str(b & 1)
+            for color in pixels[x, y]:
+                bits += str(color & 1)
 
-            if END_MARKER in bits_to_text(bits):
-                text = bits_to_text(bits)
-                return text.replace(END_MARKER, "")
+                if len(bits) == 8:
+                    data.append(int(bits, 2))
+                    bits = ""
+
+                    try:
+                        text = data.decode("utf-8")
+                        if END_MARKER in text:
+                            return text.replace(END_MARKER, "")
+                    except UnicodeDecodeError:
+                        pass
 
     return "Приховане повідомлення не знайдено."
 
