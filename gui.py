@@ -2,7 +2,7 @@ import customtkinter as ctk
 from tkinter import filedialog, messagebox
 import os
 import steganography
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageOps
 
 # Configuration
 ctk.set_appearance_mode("Dark")
@@ -166,6 +166,7 @@ class SteganoGUI(ctk.CTk):
     def update_preview(self, path, label_widget):
         try:
             img = Image.open(path)
+            img = ImageOps.exif_transpose(img)
             # Create thumbnail
             img.thumbnail((120, 120))
             ctk_img = ctk.CTkImage(light_image=img, dark_image=img, size=(img.width, img.height))
