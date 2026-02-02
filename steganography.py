@@ -49,11 +49,11 @@ def encode_image(image_path: str, message: str, output_path: str):
             break
     
     if output_path.lower().endswith(".jpg") or output_path.lower().endswith(".jpeg"):
-        print("⚠️ JPEG використовує стиснення з втратами. Результат буде збережено у PNG.")
+        # JPEG uses lossy compression, so force PNG
         output_path = output_path.rsplit(".", 1)[0] + ".png"
 
     img.save(output_path)
-    print("Повідомлення успішно приховано.")
+    return output_path
 
 
 def decode_image(image_path: str) -> str:
@@ -96,7 +96,10 @@ def main():
         message = input("Введіть текстове повідомлення: ")
         output_path = input("Імʼя вихідного файлу: ").strip()
 
-        encode_image(image_path, message, output_path)
+        final_path = encode_image(image_path, message, output_path)
+        print(f"Повідомлення успішно приховано у файлі: {final_path}")
+        if final_path != output_path:
+            print("⚠️ Формат було змінено на PNG для збереження даних.")
 
     elif choice == "2":
         image_path = input("Шлях до зображення: ").strip()
