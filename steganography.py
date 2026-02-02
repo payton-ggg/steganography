@@ -47,6 +47,10 @@ def encode_image(image_path: str, message: str, output_path: str):
             pixels[x, y] = tuple(new_colors)
         if bit_index >= len(message_bits):
             break
+    
+    if output_path.lower().endswith(".jpg") or output_path.lower().endswith(".jpeg"):
+        print("⚠️ JPEG використовує стиснення з втратами. Результат буде збережено у PNG.")
+        output_path = output_path.rsplit(".", 1)[0] + ".png"
 
     img.save(output_path)
     print("Повідомлення успішно приховано.")
