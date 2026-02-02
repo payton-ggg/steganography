@@ -66,6 +66,9 @@ def decode_image(image_path: str) -> str:
     bits = ""
     data = bytearray()
 
+    marker_bytes = END_MARKER.encode("utf-8")
+    marker_len = len(marker_bytes)
+
     for y in range(height):
         for x in range(width):
             for color in pixels[x, y]:
@@ -75,12 +78,11 @@ def decode_image(image_path: str) -> str:
                     data.append(int(bits, 2))
                     bits = ""
 
-                    try:
-                        text = data.decode("utf-8")
-                        if END_MARKER in text:
-                            return text.replace(END_MARKER, "")
-                    except UnicodeDecodeError:
-                        pass
+                    if len(data) >= marker_len and data[-marker_len:] == marker_bytes:
+                        try:
+                            return data[:-marker_len].decode("utf-8")
+                        except UnicodeDecodeError:
+                            pass
 
     return "Приховане повідомлення не знайдено."
 

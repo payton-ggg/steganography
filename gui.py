@@ -1,4 +1,5 @@
 import customtkinter as ctk
+import threading
 from tkinter import filedialog, messagebox
 import os
 import steganography
@@ -199,30 +200,45 @@ class SteganoGUI(ctk.CTk):
         
         out_path = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG Image", "*.png")])
         if out_path:
-            try:
-                final_path = steganography.encode_image(self.encode_path, msg, out_path)
-                messagebox.showinfo("Success", f"Готово!\nФайл збережено: {final_path}")
-            except Exception as e:
-                messagebox.showerror("Error", str(e))
+            self.enc_go_btn.configure(state="disabled", text="Обробка...")
+            threading.Thread(target=self._encode_thread, args=(self.encode_path, msg, out_path), daemon=True).start()
+
+    def _encode_thread(self, img_path, msg, out_path):
+        try:
+            final_path = steganography.encode_image(img_path, msg, out_path)
+            self.after(0, lambda: messagebox.showinfo("Success", f"Готово!\nФайл збережено: {final_path}"))
+        except Exception as e:
+            self.after(0, lambda: messagebox.showerror("Error", str(e)))
+        finally:
+            self.after(0, lambda: self.enc_go_btn.configure(state="normal", text="ЗАШИФРУВАТИ ТА ЗБЕРЕГТИ"))
 
     def run_decode(self):
         if not self.decode_path:
             messagebox.showerror("Error", "Оберіть зображення!")
             return
         
+        self.dec_go_btn.configure(state="disabled", text="Читання...")
+        threading.Thread(target=self._decode_thread, args=(self.decode_path,), daemon=True).start()
+
+    def _decode_thread(self, img_path):
         try:
-            msg = steganography.decode_image(self.decode_path)
-            self.dec_textbox.configure(state="normal")
-            self.dec_textbox.delete("1.0", "end")
-            self.dec_textbox.insert("1.0", msg)
-            self.dec_textbox.configure(state="disabled")
-            
-            if "не знайдено" in msg:
-                messagebox.showwarning("Warning", "Прихований текст не знайдено.")
-            else:
-                messagebox.showinfo("Success", "Повідомлення успішно вилучено!")
+            msg = steganography.decode_image(img_path)
+            self.after(0, lambda: self._update_decode_ui(msg))
         except Exception as e:
-            messagebox.showerror("Error", str(e))
+            self.after(0, lambda: messagebox.showerror("Error", str(e)))
+        finally:
+             self.after(0, lambda: self.dec_go_btn.configure(state="normal", text="РОЗШИФРУВАТИ"))
+
+    def _update_decode_ui(self, msg):
+        self.dec_textbox.configure(state="normal")
+        self.dec_textbox.delete("1.0", "end")
+        self.dec_textbox.insert("1.0", msg)
+        self.dec_textbox.configure(state="disabled")
+        
+        if "не знайдено" in msg:
+            messagebox.showwarning("Warning", "Прихований текст не знайдено.")
+        else:
+            messagebox.showinfo("Success", "Повідомлення успішно вилучено!")
 
     def change_appearance_mode_event(self, new_appearance_mode: str):
         ctk.set_appearance_mode(new_appearance_mode)
