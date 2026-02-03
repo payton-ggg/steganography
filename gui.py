@@ -5,7 +5,6 @@ import os
 import steganography
 from PIL import Image, ImageTk, ImageOps
 
-# Configuration
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
 
@@ -29,18 +28,15 @@ class SteganoGUI(ctk.CTk):
         self.title("StegoCrypt Pro")
         self.geometry("900x600")
         
-        # Grid layout 1x2
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        # UI state
         self.encode_path = None
         self.decode_path = None
 
         self.setup_sidebar()
         self.setup_main_frames()
         
-        # Default view
         self.select_frame_by_name("encode")
 
     def setup_sidebar(self):
@@ -68,17 +64,13 @@ class SteganoGUI(ctk.CTk):
         self.appearance_mode_optionemenu.grid(row=6, column=0, padx=20, pady=(10, 20))
 
     def setup_main_frames(self):
-        # --- ENCODE FRAME ---
         self.encode_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
         self.encode_frame.grid_columnconfigure(0, weight=1)
         self.encode_frame.grid_rowconfigure(2, weight=1)
-
-        # Header
         self.enc_header = ctk.CTkLabel(self.encode_frame, text="Приховати повідомлення в зображення", 
                                       font=ctk.CTkFont(size=20, weight="bold"))
         self.enc_header.grid(row=0, column=0, padx=30, pady=(30, 20), sticky="w")
 
-        # Top section (Selection + Preview)
         self.enc_top_container = ctk.CTkFrame(self.encode_frame, fg_color="gray15", corner_radius=15)
         self.enc_top_container.grid(row=1, column=0, padx=30, pady=10, sticky="ew")
         
@@ -93,7 +85,6 @@ class SteganoGUI(ctk.CTk):
         self.enc_preview_label = ctk.CTkLabel(self.enc_top_container, text="", width=100, height=60)
         self.enc_preview_label.pack(side="right", padx=20)
 
-        # Message Section
         self.enc_msg_container = ctk.CTkFrame(self.encode_frame, fg_color="transparent")
         self.enc_msg_container.grid(row=2, column=0, padx=30, pady=10, sticky="nsew")
         self.enc_msg_container.grid_columnconfigure(0, weight=1)
@@ -104,14 +95,12 @@ class SteganoGUI(ctk.CTk):
         self.enc_textbox = ctk.CTkTextbox(self.enc_msg_container, corner_radius=10, border_width=1, border_color="gray30")
         self.enc_textbox.grid(row=1, column=0, sticky="nsew")
 
-        # Action Button
         self.enc_go_btn = ctk.CTkButton(self.encode_frame, text="ЗАШИФРУВАТИ ТА ЗБЕРЕГТИ", 
                                        command=self.run_encode, height=50, corner_radius=10,
                                        font=ctk.CTkFont(size=14, weight="bold"),
                                        fg_color="#3B8ED0", hover_color="#2B6EA0")
         self.enc_go_btn.grid(row=3, column=0, padx=30, pady=30, sticky="ew")
 
-        # --- DECODE FRAME ---
         self.decode_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
         self.decode_frame.grid_columnconfigure(0, weight=1)
         self.decode_frame.grid_rowconfigure(2, weight=1)
@@ -149,11 +138,9 @@ class SteganoGUI(ctk.CTk):
         self.dec_go_btn.grid(row=3, column=0, padx=30, pady=30, sticky="ew")
 
     def select_frame_by_name(self, name):
-        # Update button colors
         self.btn_encode.configure(fg_color=("gray75", "gray25") if name == "encode" else "transparent")
         self.btn_decode.configure(fg_color=("gray75", "gray25") if name == "decode" else "transparent")
 
-        # Show/Hide frames
         if name == "encode":
             self.encode_frame.grid(row=0, column=1, sticky="nsew")
         else:
@@ -168,7 +155,6 @@ class SteganoGUI(ctk.CTk):
         try:
             img = Image.open(path)
             img = ImageOps.exif_transpose(img)
-            # Create thumbnail
             img.thumbnail((120, 120))
             ctk_img = ctk.CTkImage(light_image=img, dark_image=img, size=(img.width, img.height))
             label_widget.configure(image=ctk_img, text="")
