@@ -15,6 +15,37 @@ def bits_to_text(bits: str) -> str:
     return byte_array.decode('utf-8', errors='ignore')
 
 
+def calculate_capacity(image_path: str) -> dict:
+    """Обчислює максимальну вместимість зображення для текстових даних
+    
+    Returns:
+        dict: {'max_bytes': int, 'max_chars_approx': int, 'image_size': tuple}
+    """
+    img = Image.open(image_path)
+    img = ImageOps.exif_transpose(img)
+    width, height = img.size
+    
+    # Total bits available (3 color channels per pixel)
+    total_bits = width * height * 3
+    
+    # Subtract bits needed for END_MARKER
+    marker_bits = len(text_to_bits(END_MARKER))
+    available_bits = total_bits - marker_bits
+    
+    # Convert to bytes
+    max_bytes = available_bits // 8
+    
+    # Approximate character count (assuming average UTF-8 character uses 1-2 bytes)
+    # We'll be conservative and estimate 2 bytes per character for safety
+    max_chars_conservative = max_bytes // 2
+    
+    return {
+        'max_bytes': max_bytes,
+        'max_chars_approx': max_chars_conservative,
+        'image_size': (width, height)
+    }
+
+
 def encode_image(image_path: str, message: str, output_path: str):
     img = Image.open(image_path)
     img = ImageOps.exif_transpose(img)
