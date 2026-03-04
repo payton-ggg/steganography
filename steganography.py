@@ -24,19 +24,15 @@ def calculate_capacity(image_path: str) -> dict:
     img = Image.open(image_path)
     img = ImageOps.exif_transpose(img)
     width, height = img.size
+    bands = len(img.getbands())
     
-    # Total bits available (3 color channels per pixel)
-    total_bits = width * height * 3
+    total_bits = width * height * bands
     
-    # Subtract bits needed for END_MARKER
     marker_bits = len(text_to_bits(END_MARKER))
     available_bits = total_bits - marker_bits
     
-    # Convert to bytes
     max_bytes = available_bits // 8
     
-    # Approximate character count (assuming average UTF-8 character uses 1-2 bytes)
-    # We'll be conservative and estimate 2 bytes per character for safety
     max_chars_conservative = max_bytes // 2
     
     return {
@@ -48,14 +44,21 @@ def calculate_capacity(image_path: str) -> dict:
 
 def encode_image(image_path: str, message: str, output_path: str):
     img = Image.open(image_path)
+    icc = img.info.get('icc_profile')
+    exif = img.getexif()
+
     img = ImageOps.exif_transpose(img)
-    img = img.convert("RGB")
+    
+    if img.mode not in ('RGB', 'RGBA', 'L'):
+        img = img.convert("RGB")
+    
     pixels = img.load()
 
     width, height = img.size
+    bands = len(img.getbands())
     message_bits = text_to_bits(message + END_MARKER)
     bit_index = 0
-    max_bits = width * height * 3
+    max_bits = width * height * bands
 
     if len(message_bits) > max_bits:
         raise ValueError("Повідомлення занадто довге для цього зображення")
@@ -65,10 +68,13 @@ def encode_image(image_path: str, message: str, output_path: str):
             if bit_index >= len(message_bits):
                 break
 
-            r, g, b = pixels[x, y]
+            original_pixel = pixels[x, y]
+            if isinstance(original_pixel, int):
+                original_pixel = (original_pixel,)
+            
             new_colors = []
 
-            for color in (r, g, b):
+            for color in original_pixel:
                 if bit_index < len(message_bits):
                     new_color = (color & ~1) | int(message_bits[bit_index])
                     bit_index += 1
@@ -76,21 +82,34 @@ def encode_image(image_path: str, message: str, output_path: str):
                     new_color = color
                 new_colors.append(new_color)
 
-            pixels[x, y] = tuple(new_colors)
+            if len(new_colors) == 1:
+                pixels[x, y] = new_colors[0]
+            else:
+                pixels[x, y] = tuple(new_colors)
         if bit_index >= len(message_bits):
             break
     
     if output_path.lower().endswith(".jpg") or output_path.lower().endswith(".jpeg"):
-        # JPEG uses lossy compression, so force PNG
         output_path = output_path.rsplit(".", 1)[0] + ".png"
 
-    img.save(output_path)
+    save_kwargs = {}
+    if output_path.lower().endswith(".png"):
+        save_kwargs = {'format': 'PNG'}
+    if icc:
+        save_kwargs['icc_profile'] = icc
+    if exif:
+        save_kwargs['exif'] = exif
+
+    img.save(output_path, **save_kwargs)
     return output_path
 
 
 def decode_image(image_path: str) -> str:
     img = Image.open(image_path)
-    img = img.convert("RGB")
+    
+    if img.mode not in ('RGB', 'RGBA', 'L'):
+        img = img.convert("RGB")
+        
     pixels = img.load()
 
     width, height = img.size
@@ -102,7 +121,11 @@ def decode_image(image_path: str) -> str:
 
     for y in range(height):
         for x in range(width):
-            for color in pixels[x, y]:
+            pixel = pixels[x, y]
+            if isinstance(pixel, int):
+                pixel = (pixel,)
+                
+            for color in pixel:
                 bits += str(color & 1)
 
                 if len(bits) == 8:
