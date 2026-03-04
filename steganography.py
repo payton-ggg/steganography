@@ -141,6 +141,40 @@ def decode_image(image_path: str) -> str:
     return "Приховане повідомлення не знайдено."
 
 
+def encode_image_eof(image_path: str, message: str, output_path: str):
+    """Приховує повідомлення в кінці файлу (EOF) без зміни пікселів і втрати якості"""
+    with open(image_path, 'rb') as f:
+        content = f.read()
+    
+    marker_bytes = END_MARKER.encode('utf-8')
+    message_bytes = message.encode('utf-8')
+    
+    with open(output_path, 'wb') as f:
+        f.write(content)
+        f.write(marker_bytes)
+        f.write(message_bytes)
+        
+    return output_path
+
+
+def decode_image_eof(image_path: str) -> str:
+    """Дістає повідомлення з кінця файлу (EOF)"""
+    with open(image_path, 'rb') as f:
+        content = f.read()
+        
+    marker_bytes = END_MARKER.encode('utf-8')
+    idx = content.rfind(marker_bytes)
+    
+    if idx != -1:
+        message_bytes = content[idx + len(marker_bytes):]
+        try:
+            return message_bytes.decode('utf-8')
+        except UnicodeDecodeError:
+            pass
+            
+    return "Приховане повідомлення не знайдено."
+
+
 def main():
     print("LSB Стеганографія")
     print("1 — Приховати повідомлення")

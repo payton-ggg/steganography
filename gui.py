@@ -59,6 +59,12 @@ class SteganoGUI(ctk.CTk):
                                        command=lambda: self.select_frame_by_name("decode"))
         self.btn_decode.grid(row=2, column=0, padx=20, pady=5, sticky="ew")
 
+        self.method_var = ctk.StringVar(value="EOF")
+        self.method_label = ctk.CTkLabel(self.sidebar_frame, text="Метод приховування:", anchor="w", text_color="gray70")
+        self.method_label.grid(row=3, column=0, padx=20, pady=(20, 0), sticky="w")
+        self.method_seg = ctk.CTkSegmentedButton(self.sidebar_frame, values=["LSB", "EOF"], variable=self.method_var, command=self.update_char_counter)
+        self.method_seg.grid(row=4, column=0, padx=20, pady=(5, 0), sticky="ew")
+
         self.appearance_mode_label = ctk.CTkLabel(self.sidebar_frame, text="Тема:", anchor="w")
         self.appearance_mode_label.grid(row=5, column=0, padx=20, pady=(10, 0))
         self.appearance_mode_optionemenu = ctk.CTkOptionMenu(self.sidebar_frame, values=["Dark", "Light", "System"],
@@ -200,21 +206,27 @@ class SteganoGUI(ctk.CTk):
         current_text = self.enc_textbox.get("1.0", "end-1c")
         char_count = len(current_text)
         
-        if self.max_capacity > 0:
-            percentage = (char_count / self.max_capacity) * 100
-            if percentage > 100:
-                color = "#FF4444"  # Red if over limit
-            elif percentage > 80:
-                color = "#FFA500"  # Orange if close to limit
-            else:
-                color = "#3B8ED0"  # Blue if OK
-            
-            self.enc_char_counter.configure(
-                text=f"{char_count:,} / ~{self.max_capacity:,} ({percentage:.0f}%)",
-                text_color=color
-            )
+        method = self.method_var.get()
+        if method == "EOF":
+            self.enc_capacity_lbl.configure(text="📊 Макс: Необмежено (EOF)")
+            self.enc_char_counter.configure(text=f"{char_count:,} символів (Безліміт)", text_color="#24A148")
         else:
-            self.enc_char_counter.configure(text=f"{char_count:,} символів")
+            if self.max_capacity > 0:
+                self.enc_capacity_lbl.configure(text=f"📊 Макс: ~{self.max_capacity:,} симв.")
+                percentage = (char_count / self.max_capacity) * 100
+                if percentage > 100:
+                    color = "#FF4444"
+                elif percentage > 80:
+                    color = "#FFA500"
+                else:
+                    color = "#3B8ED0"
+                
+                self.enc_char_counter.configure(
+                    text=f"{char_count:,} / ~{self.max_capacity:,} ({percentage:.0f}%)",
+                    text_color=color
+                )
+            else:
+                self.enc_char_counter.configure(text=f"{char_count:,} символів")
 
     def run_encode(self):
         if not self.encode_path:
@@ -226,15 +238,29 @@ class SteganoGUI(ctk.CTk):
             messagebox.showerror("Error", "Введіть текст!")
             return
         
-        out_path = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG Image", "*.png")])
+        method = self.method_var.get()
+        if method == "EOF":
+            orig_name, orig_ext = os.path.splitext(os.path.basename(self.encode_path))
+            default_ext = orig_ext if orig_ext else ".png"
+            out_path = filedialog.asksaveasfilename(
+                initialfile=f"{orig_name}_secret{default_ext}",
+                defaultextension=default_ext, 
+                filetypes=[("Image Files", "*.png;*.jpg;*.jpeg;*.bmp"), ("All Files", "*.*")]
+            )
+        else:
+            out_path = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG Image", "*.png")])
+            
         if out_path:
             self.enc_go_btn.configure(state="disabled", text="Обробка...")
-            threading.Thread(target=self._encode_thread, args=(self.encode_path, msg, out_path), daemon=True).start()
+            threading.Thread(target=self._encode_thread, args=(self.encode_path, msg, out_path, method), daemon=True).start()
 
-    def _encode_thread(self, img_path, msg, out_path):
+    def _encode_thread(self, img_path, msg, out_path, method):
         try:
-            final_path = steganography.encode_image(img_path, msg, out_path)
-            self.after(0, lambda: messagebox.showinfo("Success", f"Готово!\nФайл збережено: {final_path}"))
+            if method == "LSB":
+                final_path = steganography.encode_image(img_path, msg, out_path)
+            else:
+                final_path = steganography.encode_image_eof(img_path, msg, out_path)
+            self.after(0, lambda: messagebox.showinfo("Success", f"Готово!\nМетод: {method}\nФайл збережено: {final_path}"))
         except Exception as e:
             self.after(0, lambda: messagebox.showerror("Error", str(e)))
         finally:
@@ -246,27 +272,31 @@ class SteganoGUI(ctk.CTk):
             return
         
         self.dec_go_btn.configure(state="disabled", text="Читання...")
-        threading.Thread(target=self._decode_thread, args=(self.decode_path,), daemon=True).start()
+        method = self.method_var.get()
+        threading.Thread(target=self._decode_thread, args=(self.decode_path, method), daemon=True).start()
 
-    def _decode_thread(self, img_path):
+    def _decode_thread(self, img_path, method):
         try:
-            msg = steganography.decode_image(img_path)
-            self.after(0, lambda: self._update_decode_ui(msg))
+            if method == "LSB":
+                msg = steganography.decode_image(img_path)
+            else:
+                msg = steganography.decode_image_eof(img_path)
+            self.after(0, lambda: self._update_decode_ui(msg, method))
         except Exception as e:
             self.after(0, lambda: messagebox.showerror("Error", str(e)))
         finally:
              self.after(0, lambda: self.dec_go_btn.configure(state="normal", text="РОЗШИФРУВАТИ"))
 
-    def _update_decode_ui(self, msg):
+    def _update_decode_ui(self, msg, method):
         self.dec_textbox.configure(state="normal")
         self.dec_textbox.delete("1.0", "end")
         self.dec_textbox.insert("1.0", msg)
         self.dec_textbox.configure(state="disabled")
         
         if "не знайдено" in msg:
-            messagebox.showwarning("Warning", "Прихований текст не знайдено.")
+            messagebox.showwarning("Warning", f"Прихований текст не знайдено ({method}).")
         else:
-            messagebox.showinfo("Success", "Повідомлення успішно вилучено!")
+            messagebox.showinfo("Success", f"Повідомлення успішно вилучено ({method})!")
 
     def change_appearance_mode_event(self, new_appearance_mode: str):
         ctk.set_appearance_mode(new_appearance_mode)
