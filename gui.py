@@ -1,6 +1,7 @@
 import customtkinter as ctk
+import tkinter as tk
 import threading
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, Menu
 import os
 import steganography
 from PIL import Image, ImageTk, ImageOps
@@ -113,6 +114,7 @@ class SteganoGUI(ctk.CTk):
         self.enc_textbox = ctk.CTkTextbox(self.enc_msg_container, corner_radius=10, border_width=1, border_color="gray30")
         self.enc_textbox.grid(row=1, column=0, sticky="nsew")
         self.enc_textbox.bind("<KeyRelease>", self.update_char_counter)
+        self.apply_context_menu(self.enc_textbox)
 
         self.enc_go_btn = ctk.CTkButton(self.encode_frame, text="ЗАШИФРУВАТИ ТА ЗБЕРЕГТИ", 
                                        command=self.run_encode, height=50, corner_radius=10,
@@ -149,6 +151,7 @@ class SteganoGUI(ctk.CTk):
         self.dec_textbox = ctk.CTkTextbox(self.dec_msg_container, corner_radius=10, border_width=1, border_color="gray30")
         self.dec_textbox.grid(row=1, column=0, sticky="nsew")
         self.dec_textbox.configure(state="disabled")
+        self.apply_context_menu(self.dec_textbox)
 
         self.dec_go_btn = ctk.CTkButton(self.decode_frame, text="РОЗШИФРУВАТИ", 
                                        command=self.run_decode, height=50, corner_radius=10,
@@ -227,6 +230,76 @@ class SteganoGUI(ctk.CTk):
                 )
             else:
                 self.enc_char_counter.configure(text=f"{char_count:,} символів")
+
+    def apply_context_menu(self, widget):
+        menu = Menu(self, tearoff=0, bg="#2b2b2b", fg="white", activebackground="#3B8ED0")
+        menu.add_command(label="Копіювати", command=lambda: self.copy_text(widget))
+        menu.add_command(label="Вставити", command=lambda: self.paste_text(widget))
+        menu.add_command(label="Вирізати", command=lambda: self.cut_text(widget))
+        menu.add_separator()
+        menu.add_command(label="Виділити все", command=lambda: self.select_all(widget))
+
+        def show_menu(event):
+            menu.tk_popup(event.x_root, event.y_root)
+
+        widget.bind("<Button-3>", show_menu)
+        
+        def handle_ctrl_keys(event):
+            try:
+                # v/м (paste), c/с (copy), x/х (cut), a/а (select all)
+                k = str(event.keysym).lower()
+                if k in ('v', 'м', 'm', 'v'):  # Note: Cyrillic M is mapped to English V keys physically in some standard layouts, but v is v. "м" is 'v' on standard keyboard physical key config. Let's just check standard syms. Tkinter returns keysyms based on layout.
+                    return self.paste_text(widget, event)
+                elif k in ('c', 'с'):
+                    return self.copy_text(widget, event)
+                elif k in ('x', 'х'):
+                    return self.cut_text(widget, event)
+                elif k in ('a', 'а'):
+                    return self.select_all(widget, event)
+            except Exception:
+                pass
+            return None
+
+        widget.bind("<Control-KeyPress>", handle_ctrl_keys)
+
+    def copy_text(self, widget, event=None):
+        try:
+            text = widget.get("sel.first", "sel.last")
+            self.clipboard_clear()
+            self.clipboard_append(text)
+        except Exception:
+            pass
+        return "break" if event else None
+
+    def paste_text(self, widget, event=None):
+        if widget.cget("state") == "disabled":
+            return "break" if event else None
+        try:
+            text = self.clipboard_get()
+            try:
+                widget.delete("sel.first", "sel.last")
+            except Exception:
+                pass
+            widget.insert("insert", text)
+            self.update_char_counter()
+        except Exception:
+            pass
+        return "break" if event else None
+
+    def cut_text(self, widget, event=None):
+        if widget.cget("state") == "disabled":
+            return "break" if event else None
+        try:
+            self.copy_text(widget)
+            widget.delete("sel.first", "sel.last")
+            self.update_char_counter()
+        except Exception:
+            pass
+        return "break" if event else None
+
+    def select_all(self, widget, event=None):
+        widget.tag_add("sel", "1.0", "end")
+        return "break" if event else None
 
     def run_encode(self):
         if not self.encode_path:
