@@ -193,13 +193,25 @@ class SteganoGUI(ctk.CTk):
         self.freq_enc_btn_select.pack(side="left", padx=15, pady=15)
         self.freq_enc_lbl_path = ctk.CTkLabel(self.freq_enc_top, text="Файл не обрано", text_color="gray50")
         self.freq_enc_lbl_path.pack(side="left", padx=10)
+        
+        self.freq_capacity_lbl = ctk.CTkLabel(self.freq_enc_top, text="", text_color="#3B8ED0", font=ctk.CTkFont(size=12, weight="bold"))
+        self.freq_capacity_lbl.pack(side="left", padx=15)
+
         self.freq_enc_preview = ctk.CTkLabel(self.freq_enc_top, text="", width=80, height=50)
         self.freq_enc_preview.pack(side="right", padx=15)
 
-        self.freq_enc_lbl_msg = ctk.CTkLabel(self.freq_tab_enc, text="Секретне повідомлення:", anchor="w")
-        self.freq_enc_lbl_msg.grid(row=1, column=0, padx=10, pady=(10, 5), sticky="w")
+        self.freq_msg_header_frame = ctk.CTkFrame(self.freq_tab_enc, fg_color="transparent")
+        self.freq_msg_header_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=(10, 5))
+        
+        self.freq_enc_lbl_msg = ctk.CTkLabel(self.freq_msg_header_frame, text="Секретне повідомлення:", anchor="w")
+        self.freq_enc_lbl_msg.pack(side="left")
+        
+        self.freq_char_counter = ctk.CTkLabel(self.freq_msg_header_frame, text="0 символів", font=ctk.CTkFont(size=11), text_color="gray50")
+        self.freq_char_counter.pack(side="right")
+
         self.freq_enc_txt = ctk.CTkTextbox(self.freq_tab_enc, corner_radius=10, border_width=1, border_color="gray30")
         self.freq_enc_txt.grid(row=2, column=0, padx=10, pady=0, sticky="nsew")
+        self.freq_enc_txt.bind("<KeyRelease>", self.update_char_counter_freq)
         self.apply_context_menu(self.freq_enc_txt, is_freq=True)
 
         self.freq_enc_btn = ctk.CTkButton(self.freq_tab_enc, text="ЗАШИФРУВАТИ (DCT)", 
@@ -293,6 +305,13 @@ class SteganoGUI(ctk.CTk):
             self.freq_encode_path = filename
             self.freq_enc_lbl_path.configure(text=os.path.basename(filename), text_color="white")
             self.update_preview(filename, self.freq_enc_preview)
+            try:
+                capacity = steganography.calculate_capacity(filename)
+                self.max_freq_capacity = capacity.get('freq_max_chars_approx', 0)
+                self.freq_capacity_lbl.configure(text=f"📊 Макс: ~{self.max_freq_capacity:,} симв.")
+                self.update_char_counter_freq()
+            except Exception as e:
+                self.freq_capacity_lbl.configure(text="⚠️ Помилка")
         elif target == "freq_dec":
             self.freq_decode_path = filename
             self.freq_dec_lbl_path.configure(text=os.path.basename(filename), text_color="white")
@@ -376,6 +395,8 @@ class SteganoGUI(ctk.CTk):
             widget.insert("insert", text)
             if not is_freq:
                 self.update_char_counter()
+            else:
+                self.update_char_counter_freq()
         except Exception:
             pass
         return "break" if event else None
@@ -391,6 +412,8 @@ class SteganoGUI(ctk.CTk):
                 pass
             if not is_freq:
                 self.update_char_counter()
+            else:
+                self.update_char_counter_freq()
         except Exception:
             pass
         return "break" if event else None
@@ -412,7 +435,7 @@ class SteganoGUI(ctk.CTk):
                 self.enc_capacity_lbl.configure(text="📊 Макс: Необмежено (EOF)")
                 self.enc_char_counter.configure(text=f"{char_count:,} символів (Безліміт)", text_color="#24A148")
             else:
-                if self.max_capacity > 0:
+                if hasattr(self, 'max_capacity') and self.max_capacity > 0:
                     self.enc_capacity_lbl.configure(text=f"📊 Макс: ~{self.max_capacity:,} симв.")
                     percentage = (char_count / self.max_capacity) * 100
                     if percentage > 100:
@@ -428,6 +451,29 @@ class SteganoGUI(ctk.CTk):
                     )
                 else:
                     self.enc_char_counter.configure(text=f"{char_count:,} символів")
+        except Exception:
+            pass
+
+    def update_char_counter_freq(self, event=None):
+        try:
+            current_text = self.freq_enc_txt.get("1.0", "end-1c")
+            char_count = len(current_text)
+            
+            if hasattr(self, 'max_freq_capacity') and self.max_freq_capacity > 0:
+                percentage = (char_count / self.max_freq_capacity) * 100
+                if percentage > 100:
+                    color = "#FF4444"
+                elif percentage > 80:
+                    color = "#FFA500"
+                else:
+                    color = "#3B8ED0"
+                
+                self.freq_char_counter.configure(
+                    text=f"{char_count:,} / ~{self.max_freq_capacity:,} ({percentage:.0f}%)",
+                    text_color=color
+                )
+            else:
+                self.freq_char_counter.configure(text=f"{char_count:,} символів")
         except Exception:
             pass
 
@@ -521,7 +567,8 @@ class SteganoGUI(ctk.CTk):
             final_path = steganography.encode_image_freq(img_path, msg, out_path)
             self.after(0, lambda: messagebox.showinfo("Success", f"Готово!\nФайл збережено: {final_path}"))
         except Exception as e:
-            self.after(0, lambda: messagebox.showerror("Error", str(e)))
+            err_msg = str(e)
+            self.after(0, lambda m=err_msg: messagebox.showerror("Error", m))
         finally:
             self.after(0, lambda: self.freq_enc_btn.configure(state="normal", text="ЗАШИФРУВАТИ (DCT)"))
 
@@ -538,7 +585,8 @@ class SteganoGUI(ctk.CTk):
             msg = steganography.decode_image_freq(img_path)
             self.after(0, lambda: self._update_freq_decode_ui(msg))
         except Exception as e:
-            self.after(0, lambda: messagebox.showerror("Error", str(e)))
+            err_msg = str(e)
+            self.after(0, lambda m=err_msg: messagebox.showerror("Error", m))
         finally:
             self.after(0, lambda: self.freq_dec_btn.configure(state="normal", text="РОЗШИФРУВАТИ (DCT)"))
 
