@@ -34,12 +34,22 @@ def calculate_capacity(image_path: str) -> dict:
     available_bits = total_bits - marker_bits
     
     max_bytes = available_bits // 8
-    
     max_chars_conservative = max_bytes // 2
+    
+    # Freq capacity
+    h_pad = (8 - height % 8) % 8
+    w_pad = (8 - width % 8) % 8
+    padded_height = height + h_pad
+    padded_width = width + w_pad
+    freq_coords_len = 20
+    freq_total_bits = (padded_height // 8) * (padded_width // 8) * freq_coords_len
+    freq_max_bytes = max(0, freq_total_bits - marker_bits) // 8
+    freq_max_chars_approx = freq_max_bytes // 2
     
     return {
         'max_bytes': max_bytes,
         'max_chars_approx': max_chars_conservative,
+        'freq_max_chars_approx': freq_max_chars_approx,
         'image_size': (width, height)
     }
 
@@ -200,18 +210,21 @@ def encode_image_freq(image_path: str, message: str, output_path: str):
         
     padded_height, padded_width = y_channel.shape
     
-    max_capacity_bits = (padded_height // 8) * (padded_width // 8)
+    # DCT coefficients indices to modify (mid-frequency)
+    coords = [
+        (3, 3), (3, 4), (4, 3), (4, 4), (4, 5), (5, 4),
+        (2, 4), (2, 5), (3, 2), (3, 5), (4, 2), (5, 2), (5, 3),
+        (5, 5), (6, 3), (3, 6), (4, 6), (6, 4), (6, 5), (5, 6)
+    ]
+    
+    max_capacity_bits = (padded_height // 8) * (padded_width // 8) * len(coords)
     if len(message_bits) > max_capacity_bits:
         raise ValueError(f"Повідомлення занадто довге. Максимум для частотного методу: {max_capacity_bits // 8} байт.")
         
     y_channel_float = np.float32(y_channel)
     bit_idx = 0
     message_len = len(message_bits)
-    
-    # DCT coefficients indices to modify (mid-frequency, avoiding DC and extreme AC)
-    # We will just use a specific coefficient in each 8x8 block, e.g., (4, 4)
-    u, v = 4, 4
-    delta = 25  # Quantization step (strength of embedding, higher = more robust but visible)
+    delta = 25  # Quantization step
     
     for row in range(0, padded_height, 8):
         for col in range(0, padded_width, 8):
@@ -221,24 +234,27 @@ def encode_image_freq(image_path: str, message: str, output_path: str):
             block = y_channel_float[row:row+8, col:col+8]
             dct_block = cv2.dct(block)
             
-            # Extract coef
-            val = dct_block[u, v]
-            bit = int(message_bits[bit_idx])
-            
-            # Quantize
-            q = round(val / delta)
-            if q % 2 == 0:
-                if bit == 1:
-                    q += 1 if val > q * delta else -1
-            else:
-                if bit == 0:
-                    q += 1 if val > q * delta else -1
+            for u, v in coords:
+                if bit_idx >= message_len:
+                    break
                     
-            dct_block[u, v] = q * delta
-            
+                val = dct_block[u, v]
+                bit = int(message_bits[bit_idx])
+                
+                # Quantize
+                q = round(val / delta)
+                if q % 2 == 0:
+                    if bit == 1:
+                        q += 1 if val > q * delta else -1
+                else:
+                    if bit == 0:
+                        q += 1 if val > q * delta else -1
+                        
+                dct_block[u, v] = q * delta
+                bit_idx += 1
+                
             # Inverse DCT
             y_channel_float[row:row+8, col:col+8] = cv2.idct(dct_block)
-            bit_idx += 1
             
     # Clip and convert back
     y_channel_mod = np.clip(y_channel_float, 0, 255).astype(np.uint8)
@@ -275,7 +291,11 @@ def decode_image_freq(image_path: str) -> str:
     padded_height, padded_width = y_channel.shape
     y_channel_float = np.float32(y_channel)
     
-    u, v = 4, 4
+    coords = [
+        (3, 3), (3, 4), (4, 3), (4, 4), (4, 5), (5, 4),
+        (2, 4), (2, 5), (3, 2), (3, 5), (4, 2), (5, 2), (5, 3),
+        (5, 5), (6, 3), (3, 6), (4, 6), (6, 4), (6, 5), (5, 6)
+    ]
     delta = 25
     
     bits = ""
@@ -288,20 +308,21 @@ def decode_image_freq(image_path: str) -> str:
             block = y_channel_float[row:row+8, col:col+8]
             dct_block = cv2.dct(block)
             
-            val = dct_block[u, v]
-            q = round(val / delta)
-            bit = str(int(abs(q) % 2))
-            
-            bits += bit
-            if len(bits) == 8:
-                data.append(int(bits, 2))
-                bits = ""
+            for u, v in coords:
+                val = dct_block[u, v]
+                q = round(val / delta)
+                bit = str(int(abs(q) % 2))
                 
-                if len(data) >= marker_len and data[-marker_len:] == marker_bytes:
-                    try:
-                        return data[:-marker_len].decode("utf-8")
-                    except UnicodeDecodeError:
-                        pass
+                bits += bit
+                if len(bits) == 8:
+                    data.append(int(bits, 2))
+                    bits = ""
+                    
+                    if len(data) >= marker_len and data[-marker_len:] == marker_bytes:
+                        try:
+                            return data[:-marker_len].decode("utf-8")
+                        except UnicodeDecodeError:
+                            pass
                         
     return "Приховане повідомлення не знайдено."
 
