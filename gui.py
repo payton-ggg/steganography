@@ -62,14 +62,23 @@ class SteganoGUI(ctk.CTk):
         self.btn_decode.grid(row=2, column=0, padx=20, pady=5, sticky="ew")
 
         self.method_var = ctk.StringVar(value="EOF (Без втрат)")
-        self.method_label = ctk.CTkLabel(self.sidebar_frame, text="Метод стеганографії:", anchor="w", text_color="gray70")
-        self.method_label.grid(row=3, column=0, padx=20, pady=(20, 0), sticky="w")
+        self.method_label = ctk.CTkLabel(self.sidebar_frame, text="Метод стеганографії:", anchor="w", text_color="gray70", font=ctk.CTkFont(size=12))
+        self.method_label.grid(row=3, column=0, padx=20, pady=(30, 5), sticky="w")
         
-        self.method_seg = ctk.CTkSegmentedButton(self.sidebar_frame, values=["LSB (Класичний)", "EOF (Без втрат)", "DCT (Частотний)"], variable=self.method_var, command=self.update_char_counter)
-        self.method_seg.grid(row=4, column=0, padx=20, pady=(5, 0), sticky="ew")
+        self.method_menu = ctk.CTkOptionMenu(self.sidebar_frame, 
+                                             values=["LSB (Класичний)", "EOF (Без втрат)", "DCT (Частотний)"],
+                                             variable=self.method_var, 
+                                             command=self.update_char_counter,
+                                             height=35,
+                                             fg_color="#3B8ED0",
+                                             button_color="#2B6EA0",
+                                             button_hover_color="#1E4D7B",
+                                             dropdown_fg_color="gray20",
+                                             dropdown_hover_color="gray30")
+        self.method_menu.grid(row=4, column=0, padx=20, pady=(0, 20), sticky="ew")
 
-        self.appearance_mode_label = ctk.CTkLabel(self.sidebar_frame, text="Тема:", anchor="w")
-        self.appearance_mode_label.grid(row=5, column=0, padx=20, pady=(10, 0))
+        self.appearance_mode_label = ctk.CTkLabel(self.sidebar_frame, text="Тема інтерфейсу:", anchor="w", text_color="gray70", font=ctk.CTkFont(size=12))
+        self.appearance_mode_label.grid(row=5, column=0, padx=20, pady=(10, 5), sticky="w")
         self.appearance_mode_optionemenu = ctk.CTkOptionMenu(self.sidebar_frame, values=["Dark", "Light", "System"],
                                                                        command=self.change_appearance_mode_event)
         self.appearance_mode_optionemenu.grid(row=6, column=0, padx=20, pady=(10, 20))
